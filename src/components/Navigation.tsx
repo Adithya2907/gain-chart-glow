@@ -1,9 +1,11 @@
-import { Dumbbell, TrendingUp } from 'lucide-react';
+import { Dumbbell, TrendingUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+export type TabType = 'today' | 'calendar' | 'progress';
+
 interface NavigationProps {
-  activeTab: 'today' | 'progress';
-  onTabChange: (tab: 'today' | 'progress') => void;
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
 }
 
 export function Navigation({ activeTab, onTabChange }: NavigationProps) {
@@ -21,6 +23,18 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
         >
           <Dumbbell className="w-5 h-5" />
           <span className="text-xs font-medium">Today</span>
+        </button>
+        <button
+          onClick={() => onTabChange('calendar')}
+          className={cn(
+            "flex-1 flex flex-col items-center gap-1 py-4 transition-colors",
+            activeTab === 'calendar' 
+              ? "text-primary" 
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Calendar className="w-5 h-5" />
+          <span className="text-xs font-medium">Calendar</span>
         </button>
         <button
           onClick={() => onTabChange('progress')}

@@ -1,19 +1,28 @@
 import { useState } from 'react';
-import { Navigation } from '@/components/Navigation';
+import { Navigation, TabType } from '@/components/Navigation';
 import { TodayView } from '@/components/TodayView';
+import { CalendarView } from '@/components/CalendarView';
 import { ProgressView } from '@/components/ProgressView';
+import { ExerciseHistoryModal } from '@/components/ExerciseHistoryModal';
 import { useWorkouts } from '@/hooks/useWorkouts';
 import { Dumbbell } from 'lucide-react';
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState<'today' | 'progress'>('today');
+  const [activeTab, setActiveTab] = useState<TabType>('today');
+  const [historyExercise, setHistoryExercise] = useState<string | null>(null);
+  
   const { 
+    workouts,
     getTodayWorkout, 
     addExercise, 
     removeExercise, 
     getAllExerciseNames,
     getExerciseHistory 
   } = useWorkouts();
+
+  const handleViewHistory = (exerciseName: string) => {
+    setHistoryExercise(exerciseName);
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -25,14 +34,24 @@ const Index = () => {
           <span className="text-xl font-bold">GymTrack</span>
         </div>
 
-        {activeTab === 'today' ? (
+        {activeTab === 'today' && (
           <TodayView
             todayWorkout={getTodayWorkout()}
             onAddExercise={addExercise}
             onRemoveExercise={removeExercise}
+            onViewHistory={handleViewHistory}
             suggestions={getAllExerciseNames()}
           />
-        ) : (
+        )}
+
+        {activeTab === 'calendar' && (
+          <CalendarView
+            workouts={workouts}
+            onViewHistory={handleViewHistory}
+          />
+        )}
+
+        {activeTab === 'progress' && (
           <ProgressView
             exerciseNames={getAllExerciseNames()}
             getExerciseHistory={getExerciseHistory}
@@ -41,6 +60,12 @@ const Index = () => {
       </div>
 
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+      <ExerciseHistoryModal
+        exerciseName={historyExercise}
+        history={historyExercise ? getExerciseHistory(historyExercise) : []}
+        onClose={() => setHistoryExercise(null)}
+      />
     </div>
   );
 };

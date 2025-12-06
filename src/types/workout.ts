@@ -1,10 +1,16 @@
+export interface SetEntry {
+  reps?: number;
+  weight?: number;
+  duration?: number; // in seconds, for timed exercises like plank
+}
+
 export interface Exercise {
   id: string;
   name: string;
-  sets: number;
-  reps: number;
-  weight?: number;
+  type: 'reps' | 'timed';
+  sets: SetEntry[];
   notes?: string;
+  order: number; // to track exercise order within the day
 }
 
 export interface WorkoutDay {
