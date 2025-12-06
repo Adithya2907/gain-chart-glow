@@ -1,29 +1,34 @@
 import { useState } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns';
-import { ChevronLeft, ChevronRight, Dumbbell, Edit2, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Dumbbell, Edit2, FileText, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { WorkoutDay } from '@/types/workout';
+import { WorkoutDay, Goal, Exercise } from '@/types/workout';
 import { ExerciseCard } from '@/components/ExerciseCard';
+import { ExerciseEditForm } from '@/components/ExerciseEditForm';
 import { cn } from '@/lib/utils';
 
 interface CalendarViewProps {
   workouts: WorkoutDay[];
   onViewHistory: (exerciseName: string) => void;
   onUpdateDayNotes: (date: string, notes: string) => void;
+  onUpdateExercise: (exerciseId: string, updates: Partial<Exercise>, date: string) => void;
+  goals?: Goal[];
 }
 
-export function CalendarView({ workouts, onViewHistory, onUpdateDayNotes }: CalendarViewProps) {
+export function CalendarView({ workouts, onViewHistory, onUpdateDayNotes, onUpdateExercise, goals = [] }: CalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState('');
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const workoutDates = new Set(workouts.map(w => w.date));
+  const goalDates = new Set(goals.filter(g => !g.achieved).map(g => g.targetDate));
 
   const getWorkoutForDate = (date: Date): WorkoutDay | undefined => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -102,6 +107,7 @@ export function CalendarView({ workouts, onViewHistory, onUpdateDayNotes }: Cale
           {daysInMonth.map(day => {
             const dateStr = format(day, 'yyyy-MM-dd');
             const hasWorkout = workoutDates.has(dateStr);
+            const hasGoal = goalDates.has(dateStr);
             const isSelected = selectedDate && isSameDay(day, selectedDate);
             const isToday = isSameDay(day, new Date());
 
@@ -122,12 +128,20 @@ export function CalendarView({ workouts, onViewHistory, onUpdateDayNotes }: Cale
                 )}>
                   {format(day, 'd')}
                 </span>
-                {hasWorkout && (
-                  <div className={cn(
-                    "absolute bottom-1 w-1.5 h-1.5 rounded-full",
-                    isSelected ? "bg-primary-foreground" : "bg-primary"
-                  )} />
-                )}
+                <div className="absolute bottom-1 flex items-center gap-0.5">
+                  {hasWorkout && (
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      isSelected ? "bg-primary-foreground" : "bg-primary"
+                    )} />
+                  )}
+                  {hasGoal && (
+                    <Target className={cn(
+                      "w-2 h-2",
+                      isSelected ? "text-primary-foreground" : "text-orange-500"
+                    )} />
+                  )}
+                </div>
               </button>
             );
           })}
@@ -136,9 +150,49 @@ export function CalendarView({ workouts, onViewHistory, onUpdateDayNotes }: Cale
 
       {selectedDate && (
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-muted-foreground">
-            {format(selectedDate, 'EEEE, MMMM d')}
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-muted-foreground">
+              {format(selectedDate, 'EEEE, MMMM d')}
+            </h2>
+            {goals.filter(g => !g.achieved && g.targetDate === format(selectedDate, 'yyyy-MM-dd')).length > 0 && (
+              <div className="flex items-center gap-1 text-xs text-orange-500">
+                <Target className="w-3 h-3" />
+                <span>Goal</span>
+              </div>
+            )}
+          </div>
+
+          {goals.filter(g => !g.achieved && g.targetDate === format(selectedDate, 'yyyy-MM-dd')).length > 0 && (
+            <div className="glass-card rounded-xl p-3 bg-orange-500/10 border-orange-500/20">
+              <div className="flex items-start gap-2">
+                <Target className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-sm mb-1">Goals for this date</h3>
+                  {goals
+                    .filter(g => !g.achieved && g.targetDate === format(selectedDate, 'yyyy-MM-dd'))
+                    .map((goal) => {
+                      const formatGoalValue = () => {
+                        switch (goal.type) {
+                          case 'weight':
+                            return `${goal.targetValue} kg`;
+                          case 'reps':
+                            return `${goal.targetValue} reps`;
+                          case 'duration':
+                            const mins = Math.floor(goal.targetValue / 60);
+                            const secs = goal.targetValue % 60;
+                            return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                        }
+                      };
+                      return (
+                        <p key={goal.id} className="text-xs text-muted-foreground">
+                          {goal.exerciseName}: {formatGoalValue()}
+                        </p>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Day Notes Section */}
           <div className="glass-card rounded-xl p-4">
@@ -206,13 +260,29 @@ export function CalendarView({ workouts, onViewHistory, onUpdateDayNotes }: Cale
               <h3 className="font-semibold text-muted-foreground">Exercises</h3>
               {selectedWorkout.exercises
                 .sort((a, b) => a.order - b.order)
-                .map((exercise) => (
-                  <ExerciseCard
-                    key={exercise.id}
-                    exercise={exercise}
-                    onViewHistory={onViewHistory}
-                  />
-                ))}
+                .map((exercise) => 
+                  editingExerciseId === exercise.id ? (
+                    <ExerciseEditForm
+                      key={exercise.id}
+                      exercise={exercise}
+                      onSave={(updatedExercise) => {
+                        if (selectedDate) {
+                          const dateStr = format(selectedDate, 'yyyy-MM-dd');
+                          onUpdateExercise(exercise.id, updatedExercise, dateStr);
+                        }
+                        setEditingExerciseId(null);
+                      }}
+                      onCancel={() => setEditingExerciseId(null)}
+                    />
+                  ) : (
+                    <ExerciseCard
+                      key={exercise.id}
+                      exercise={exercise}
+                      onEdit={(ex) => setEditingExerciseId(ex.id)}
+                      onViewHistory={onViewHistory}
+                    />
+                  )
+                )}
             </div>
           ) : (
             <div className="glass-card rounded-xl p-8 text-center">

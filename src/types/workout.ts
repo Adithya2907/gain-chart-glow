@@ -7,7 +7,7 @@ export interface SetEntry {
 export interface Exercise {
   id: string;
   name: string;
-  type: 'reps' | 'timed';
+  type: "reps" | "timed";
   sets: SetEntry[];
   notes?: string;
   order: number; // to track exercise order within the day
@@ -33,5 +33,32 @@ export interface BodyMeasurement {
   hips?: number; // in cm
   biceps?: number; // in cm
   thighs?: number; // in cm
+  notes?: string;
+}
+
+export interface WorkoutTemplate {
+  id: string;
+  name: string;
+  exercises: {
+    name: string;
+    type: "reps" | "timed";
+    sets: {
+      reps?: number;
+      weight?: number;
+      duration?: number;
+    }[];
+    notes?: string;
+  }[];
+  notes?: string;
+}
+
+export interface Goal {
+  id: string;
+  exerciseName: string;
+  targetValue: number;
+  targetDate: string; // ISO date string YYYY-MM-DD
+  type: "weight" | "reps" | "duration"; // weight in kg, reps count, or duration in seconds
+  achieved?: boolean;
+  achievedDate?: string;
   notes?: string;
 }

@@ -1,4 +1,4 @@
-import { X, Timer, Weight, ChevronRight } from 'lucide-react';
+import { X, Timer, Weight, ChevronRight, Edit2 } from 'lucide-react';
 import { Exercise } from '@/types/workout';
 import { Button } from '@/components/ui/button';
 
@@ -6,10 +6,12 @@ interface ExerciseCardProps {
   exercise: Exercise;
   onRemove?: (id: string) => void;
   onViewHistory?: (exerciseName: string) => void;
+  onEdit?: (exercise: Exercise) => void;
   showOrder?: boolean;
+  isEditing?: boolean;
 }
 
-export function ExerciseCard({ exercise, onRemove, onViewHistory, showOrder = true }: ExerciseCardProps) {
+export function ExerciseCard({ exercise, onRemove, onViewHistory, onEdit, showOrder = true, isEditing = false }: ExerciseCardProps) {
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -81,6 +83,16 @@ export function ExerciseCard({ exercise, onRemove, onViewHistory, showOrder = tr
         </div>
 
         <div className="flex items-center gap-1">
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onEdit(exercise)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+            >
+              <Edit2 className="w-4 h-4" />
+            </Button>
+          )}
           {onViewHistory && (
             <Button
               variant="ghost"

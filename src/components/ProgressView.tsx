@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, Calendar, Weight, Timer } from 'lucide-react';
-import { Exercise } from '@/types/workout';
+import { TrendingUp, Calendar, Weight, Timer, Target } from 'lucide-react';
+import { Exercise, Goal } from '@/types/workout';
+import { format } from 'date-fns';
 
 interface ProgressViewProps {
   exerciseNames: string[];
@@ -10,10 +11,18 @@ interface ProgressViewProps {
     date: string;
     exercises: Exercise[];
   }[];
+  goals?: Goal[];
 }
 
-export function ProgressView({ exerciseNames, getExerciseHistory }: ProgressViewProps) {
+export function ProgressView({ exerciseNames, getExerciseHistory, goals = [] }: ProgressViewProps) {
   const [selectedExercise, setSelectedExercise] = useState<string>('');
+  
+  const exerciseGoals = useMemo(() => {
+    if (!selectedExercise) return [];
+    return goals.filter(
+      (g) => g.exerciseName.toLowerCase() === selectedExercise.toLowerCase() && !g.achieved
+    );
+  }, [selectedExercise, goals]);
 
   const chartData = useMemo<{
     date: string;
@@ -57,6 +66,51 @@ export function ProgressView({ exerciseNames, getExerciseHistory }: ProgressView
   }, [selectedExercise, getExerciseHistory]);
 
   const isTimedExercise = chartData.length > 0 && chartData[0].type === 'timed';
+
+  // Create projection data for goals
+  const goalProjectionData = useMemo(() => {
+    if (chartData.length === 0 || exerciseGoals.length === 0) return [];
+
+    const projections: Array<{ date: string; fullDate: string; value: number; goalId: string }> = [];
+
+    exerciseGoals.forEach((goal) => {
+      if (isTimedExercise && goal.type !== 'duration') return;
+      if (!isTimedExercise && goal.type !== 'weight') return;
+
+      const latestDataPoint = chartData[chartData.length - 1];
+      const latestValue = isTimedExercise ? latestDataPoint.duration : latestDataPoint.maxWeight;
+      
+      if (latestValue === 0 || latestValue === undefined) return;
+
+      const goalDate = new Date(goal.targetDate);
+      const latestDate = new Date(latestDataPoint.fullDate);
+      const daysDiff = Math.ceil((goalDate.getTime() - latestDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff <= 0) return; // Goal date is in the past or today
+
+      // Create projection points: current value to goal value over time
+      const valueDiff = goal.targetValue - latestValue;
+      const projectionPoints = Math.min(daysDiff, 30); // Show up to 30 days of projection
+
+      for (let i = 1; i <= projectionPoints; i++) {
+        const projectionDate = new Date(latestDate);
+        projectionDate.setDate(projectionDate.getDate() + i);
+        
+        // Linear interpolation from current to goal
+        const progress = i / daysDiff;
+        const projectedValue = latestValue + (valueDiff * progress);
+
+        projections.push({
+          date: format(projectionDate, 'MMM d'),
+          fullDate: format(projectionDate, 'yyyy-MM-dd'),
+          value: projectedValue,
+          goalId: goal.id,
+        });
+      }
+    });
+
+    return projections;
+  }, [chartData, exerciseGoals, isTimedExercise]);
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -160,13 +214,42 @@ export function ProgressView({ exerciseNames, getExerciseHistory }: ProgressView
             </div>
           </div>
 
+          {exerciseGoals.length > 0 && (
+            <div className="glass-card rounded-xl p-3 bg-orange-500/10 border-orange-500/20">
+              <div className="flex items-start gap-2">
+                <Target className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-sm mb-1">Active Goals</h3>
+                  {exerciseGoals.map((goal) => {
+                    const formatGoalValue = () => {
+                      if (goal.type === 'weight') {
+                        return `${goal.targetValue} kg`;
+                      } else if (goal.type === 'reps') {
+                        return `${goal.targetValue} reps`;
+                      } else {
+                        const mins = Math.floor(goal.targetValue / 60);
+                        const secs = goal.targetValue % 60;
+                        return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                      }
+                    };
+                    return (
+                      <p key={goal.id} className="text-xs text-muted-foreground">
+                        {formatGoalValue()} by {new Date(goal.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="glass-card rounded-xl p-4">
             <h3 className="font-semibold mb-4">
               {isTimedExercise ? 'Duration Progress' : 'Weight Progress'}
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis 
                     dataKey="date" 
@@ -189,6 +272,34 @@ export function ProgressView({ exerciseNames, getExerciseHistory }: ProgressView
                     }}
                     labelStyle={{ color: 'hsl(var(--muted-foreground))' }}
                   />
+                  {exerciseGoals.map((goal) => {
+                    if (isTimedExercise && goal.type !== 'duration') return null;
+                    if (!isTimedExercise && goal.type !== 'weight') return null;
+                    const formatGoalLabel = () => {
+                      if (goal.type === 'weight') {
+                        return `Goal: ${goal.targetValue}kg`;
+                      } else {
+                        const mins = Math.floor(goal.targetValue / 60);
+                        const secs = goal.targetValue % 60;
+                        return `Goal: ${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}`;
+                      }
+                    };
+                    return (
+                      <ReferenceLine
+                        key={goal.id}
+                        y={goal.targetValue}
+                        stroke="hsl(25, 95%, 53%)"
+                        strokeDasharray="5 5"
+                        strokeWidth={2}
+                        label={{
+                          value: formatGoalLabel(),
+                          position: 'right',
+                          fill: 'hsl(25, 95%, 53%)',
+                          fontSize: 10,
+                        }}
+                      />
+                    );
+                  })}
                   <Line
                     type="monotone"
                     dataKey={isTimedExercise ? 'duration' : 'maxWeight'}
@@ -198,6 +309,46 @@ export function ProgressView({ exerciseNames, getExerciseHistory }: ProgressView
                     dot={{ fill: 'hsl(var(--primary))', strokeWidth: 0, r: 4 }}
                     activeDot={{ r: 6, fill: 'hsl(var(--primary))' }}
                   />
+                  {goalProjectionData.length > 0 && exerciseGoals.map((goal) => {
+                    if (isTimedExercise && goal.type !== 'duration') return null;
+                    if (!isTimedExercise && goal.type !== 'weight') return null;
+                    
+                    const goalProjections = goalProjectionData.filter(p => p.goalId === goal.id);
+                    if (goalProjections.length === 0) return null;
+
+                    const lastActual = chartData[chartData.length - 1];
+                    const lastValue = isTimedExercise ? lastActual.duration : lastActual.maxWeight;
+                    
+                    // Create projection data points starting from last actual point
+                    const projectionData = [
+                      {
+                        date: lastActual.date,
+                        fullDate: lastActual.fullDate,
+                        [isTimedExercise ? 'duration' : 'maxWeight']: lastValue,
+                      },
+                      ...goalProjections.map(p => ({
+                        date: p.date,
+                        fullDate: p.fullDate,
+                        [isTimedExercise ? 'duration' : 'maxWeight']: p.value,
+                      })),
+                    ];
+
+                    return (
+                      <Line
+                        key={`projection-${goal.id}`}
+                        type="monotone"
+                        dataKey={isTimedExercise ? 'duration' : 'maxWeight'}
+                        data={projectionData}
+                        stroke="hsl(25, 95%, 53%)"
+                        strokeDasharray="8 4"
+                        strokeWidth={1.5}
+                        dot={false}
+                        connectNulls={true}
+                        strokeOpacity={0.6}
+                        isAnimationActive={false}
+                      />
+                    );
+                  })}
                 </LineChart>
               </ResponsiveContainer>
             </div>

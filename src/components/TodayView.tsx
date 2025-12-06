@@ -1,23 +1,31 @@
+import { useState } from 'react';
 import { ExerciseForm } from '@/components/ExerciseForm';
 import { ExerciseCard } from '@/components/ExerciseCard';
+import { ExerciseEditForm } from '@/components/ExerciseEditForm';
 import { WorkoutDay, Exercise, SetEntry } from '@/types/workout';
-import { Flame, FileText } from 'lucide-react';
+import { Flame, FileText, BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface TodayViewProps {
   todayWorkout: WorkoutDay | undefined;
   onAddExercise: (exercise: Omit<Exercise, 'id' | 'order'>, date?: string) => void;
   onRemoveExercise: (id: string) => void;
+  onUpdateExercise: (exerciseId: string, updates: Partial<Exercise>, date?: string) => void;
   onViewHistory: (exerciseName: string) => void;
   suggestions: string[];
+  onOpenTemplates?: () => void;
 }
 
 export function TodayView({ 
   todayWorkout, 
   onAddExercise, 
-  onRemoveExercise, 
+  onRemoveExercise,
+  onUpdateExercise,
   onViewHistory,
-  suggestions 
+  suggestions,
+  onOpenTemplates,
 }: TodayViewProps) {
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -52,6 +60,25 @@ export function TodayView({
         )}
       </header>
 
+      {onOpenTemplates && (
+        <div className="glass-card rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                Workout Templates
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Load a pre-planned workout template
+              </p>
+            </div>
+            <Button onClick={onOpenTemplates} size="sm" variant="outline">
+              Browse Templates
+            </Button>
+          </div>
+        </div>
+      )}
+
       <ExerciseForm 
         onSubmit={(exercise) => onAddExercise(exercise, exercise.date)} 
         suggestions={suggestions} 
@@ -74,14 +101,27 @@ export function TodayView({
           <h2 className="text-lg font-semibold text-muted-foreground">Logged Exercises</h2>
           {todayWorkout.exercises
             .sort((a, b) => a.order - b.order)
-            .map((exercise) => (
-              <ExerciseCard
-                key={exercise.id}
-                exercise={exercise}
-                onRemove={onRemoveExercise}
-                onViewHistory={onViewHistory}
-              />
-            ))}
+            .map((exercise) => 
+              editingExerciseId === exercise.id ? (
+                <ExerciseEditForm
+                  key={exercise.id}
+                  exercise={exercise}
+                  onSave={(updatedExercise) => {
+                    onUpdateExercise(exercise.id, updatedExercise);
+                    setEditingExerciseId(null);
+                  }}
+                  onCancel={() => setEditingExerciseId(null)}
+                />
+              ) : (
+                <ExerciseCard
+                  key={exercise.id}
+                  exercise={exercise}
+                  onRemove={onRemoveExercise}
+                  onEdit={(ex) => setEditingExerciseId(ex.id)}
+                  onViewHistory={onViewHistory}
+                />
+              )
+            )}
         </div>
       )}
 

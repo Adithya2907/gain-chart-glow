@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SetEntry } from '@/types/workout';
@@ -64,12 +65,26 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
     }
   };
 
+  const [useWeight, setUseWeight] = useState(true);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || sets.length === 0) return;
 
-    const validSets = sets.filter(set => 
-      type === 'reps' ? (set.reps && set.reps > 0) : (set.duration && set.duration > 0)
+    const validSets = sets.map(set => {
+      if (type === 'reps') {
+        // For reps exercises, only require reps if useWeight is false
+        if (!useWeight) {
+          return { reps: set.reps, weight: undefined };
+        }
+        return { reps: set.reps, weight: set.weight };
+      } else {
+        return { duration: set.duration };
+      }
+    }).filter(set => 
+      type === 'reps' 
+        ? (set.reps && set.reps > 0 && (!useWeight || set.weight !== undefined))
+        : (set.duration && set.duration > 0)
     );
 
     if (validSets.length === 0) return;
@@ -87,6 +102,7 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
     setName('');
     setSets(type === 'reps' ? [{ reps: undefined, weight: undefined }] : [{ duration: undefined }]);
     setNotes('');
+    setUseWeight(true);
     setSelectedDate(new Date());
   };
 
@@ -190,7 +206,10 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
             type="button"
             variant={type === 'reps' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => handleTypeChange('reps')}
+            onClick={() => {
+              handleTypeChange('reps');
+              setUseWeight(true);
+            }}
             className="flex-1"
           >
             <Repeat className="w-4 h-4 mr-1" />
@@ -207,6 +226,23 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
             Timed
           </Button>
         </div>
+        {type === 'reps' && (
+          <div className="mt-2">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={useWeight}
+                onCheckedChange={(checked) => {
+                  setUseWeight(checked === true);
+                  if (!checked) {
+                    // Clear weights when disabling weight
+                    setSets(sets.map(s => ({ reps: s.reps, weight: undefined })));
+                  }
+                }}
+              />
+              <span className="text-muted-foreground">Use weight (uncheck for bodyweight exercises like pull-ups, ab roller)</span>
+            </label>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -224,19 +260,23 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
             
             {type === 'reps' ? (
               <>
-                <div className="flex-1">
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={set.weight || ''}
-                    onChange={(e) => updateSet(index, 'weight', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    placeholder="kg"
-                    className="bg-secondary border-border h-9 text-sm"
-                  />
-                </div>
-                <span className="text-muted-foreground text-sm">×</span>
-                <div className="flex-1">
+                {useWeight && (
+                  <>
+                    <div className="flex-1">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={set.weight || ''}
+                        onChange={(e) => updateSet(index, 'weight', e.target.value ? parseFloat(e.target.value) : undefined)}
+                        placeholder="kg"
+                        className="bg-secondary border-border h-9 text-sm"
+                      />
+                    </div>
+                    <span className="text-muted-foreground text-sm">×</span>
+                  </>
+                )}
+                <div className={useWeight ? "flex-1" : "flex-1"}>
                   <Input
                     type="number"
                     min="1"
