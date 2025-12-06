@@ -5,7 +5,7 @@ import { Flame } from 'lucide-react';
 
 interface TodayViewProps {
   todayWorkout: WorkoutDay | undefined;
-  onAddExercise: (exercise: Omit<Exercise, 'id' | 'order'>) => void;
+  onAddExercise: (exercise: Omit<Exercise, 'id' | 'order'>, date?: string) => void;
   onRemoveExercise: (id: string) => void;
   onViewHistory: (exerciseName: string) => void;
   suggestions: string[];
@@ -52,7 +52,10 @@ export function TodayView({
         )}
       </header>
 
-      <ExerciseForm onSubmit={onAddExercise} suggestions={suggestions} />
+      <ExerciseForm 
+        onSubmit={(exercise) => onAddExercise(exercise, exercise.date)} 
+        suggestions={suggestions} 
+      />
 
       {todayWorkout && todayWorkout.exercises.length > 0 && (
         <div className="space-y-3">

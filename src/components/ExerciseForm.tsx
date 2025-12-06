@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { Plus, Minus, Timer, Repeat } from 'lucide-react';
+import { Plus, Minus, Timer, Repeat, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SetEntry } from '@/types/workout';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface ExerciseFormProps {
   onSubmit: (exercise: {
@@ -13,6 +16,7 @@ interface ExerciseFormProps {
     type: 'reps' | 'timed';
     sets: SetEntry[];
     notes?: string;
+    date?: string;
   }) => void;
   suggestions: string[];
 }
@@ -23,6 +27,8 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
   const [sets, setSets] = useState<SetEntry[]>([{ reps: undefined, weight: undefined }]);
   const [notes, setNotes] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const filteredSuggestions = suggestions.filter(s =>
     s.toLowerCase().includes(name.toLowerCase()) && name.length > 0
@@ -68,16 +74,20 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
 
     if (validSets.length === 0) return;
 
+    const dateString = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined;
+
     onSubmit({
       name: name.trim(),
       type,
       sets: validSets,
       notes: notes.trim() || undefined,
+      date: dateString,
     });
 
     setName('');
     setSets(type === 'reps' ? [{ reps: undefined, weight: undefined }] : [{ duration: undefined }]);
     setNotes('');
+    setSelectedDate(new Date());
   };
 
   const formatDuration = (seconds: number): string => {
@@ -86,8 +96,63 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
     return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
 
+  const getDateString = (date: Date | undefined) => {
+    if (!date) return 'Select date';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(date);
+    selected.setHours(0, 0, 0, 0);
+    
+    if (selected.getTime() === today.getTime()) {
+      return 'Today';
+    }
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (selected.getTime() === yesterday.getTime()) {
+      return 'Yesterday';
+    }
+    return format(date, 'MMM d, yyyy');
+  };
+
   return (
     <form onSubmit={handleSubmit} className="glass-card rounded-xl p-4 space-y-4">
+      <div>
+        <Label className="text-muted-foreground text-sm">Date</Label>
+        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(
+                "w-full mt-1 justify-start text-left font-normal bg-secondary border-border",
+                !selectedDate && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {getDateString(selectedDate)}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                setSelectedDate(date);
+                setIsDatePickerOpen(false);
+              }}
+              disabled={(date) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const checkDate = new Date(date);
+                checkDate.setHours(0, 0, 0, 0);
+                return checkDate > today;
+              }}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
       <div className="relative">
         <Label htmlFor="name" className="text-muted-foreground text-sm">Exercise Name</Label>
         <Input
