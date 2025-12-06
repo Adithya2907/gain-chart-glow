@@ -1,7 +1,7 @@
 import { ExerciseForm } from '@/components/ExerciseForm';
 import { ExerciseCard } from '@/components/ExerciseCard';
 import { WorkoutDay, Exercise, SetEntry } from '@/types/workout';
-import { Flame } from 'lucide-react';
+import { Flame, FileText } from 'lucide-react';
 
 interface TodayViewProps {
   todayWorkout: WorkoutDay | undefined;
@@ -56,6 +56,18 @@ export function TodayView({
         onSubmit={(exercise) => onAddExercise(exercise, exercise.date)} 
         suggestions={suggestions} 
       />
+
+      {todayWorkout && todayWorkout.notes && (
+        <div className="glass-card rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="w-4 h-4 text-muted-foreground" />
+            <h3 className="font-semibold text-sm">Today's Notes</h3>
+          </div>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+            {todayWorkout.notes}
+          </p>
+        </div>
+      )}
 
       {todayWorkout && todayWorkout.exercises.length > 0 && (
         <div className="space-y-3">

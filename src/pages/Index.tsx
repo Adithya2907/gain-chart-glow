@@ -3,6 +3,7 @@ import { Navigation, TabType } from '@/components/Navigation';
 import { TodayView } from '@/components/TodayView';
 import { CalendarView } from '@/components/CalendarView';
 import { ProgressView } from '@/components/ProgressView';
+import { ExercisesListView } from '@/components/ExercisesListView';
 import { ExerciseHistoryModal } from '@/components/ExerciseHistoryModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { useWorkouts } from '@/hooks/useWorkouts';
@@ -21,8 +22,13 @@ const Index = () => {
     removeExercise, 
     getAllExerciseNames,
     getExerciseHistory,
+    updateWorkoutDayNotes,
     exportData,
-    importData
+    importData,
+    measurements,
+    addMeasurement,
+    updateMeasurement,
+    deleteMeasurement,
   } = useWorkouts();
 
   const handleViewHistory = (exerciseName: string) => {
@@ -63,6 +69,15 @@ const Index = () => {
           <CalendarView
             workouts={workouts}
             onViewHistory={handleViewHistory}
+            onUpdateDayNotes={updateWorkoutDayNotes}
+          />
+        )}
+
+        {activeTab === 'exercises' && (
+          <ExercisesListView
+            exerciseNames={getAllExerciseNames()}
+            getExerciseHistory={getExerciseHistory}
+            onViewHistory={handleViewHistory}
           />
         )}
 
@@ -87,6 +102,10 @@ const Index = () => {
         onClose={() => setSettingsOpen(false)}
         onExport={exportData}
         onImport={importData}
+        measurements={measurements}
+        onAddMeasurement={addMeasurement}
+        onUpdateMeasurement={updateMeasurement}
+        onDeleteMeasurement={deleteMeasurement}
       />
     </div>
   );

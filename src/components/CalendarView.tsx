@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns';
-import { ChevronLeft, ChevronRight, Dumbbell } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Dumbbell, Edit2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { WorkoutDay } from '@/types/workout';
 import { ExerciseCard } from '@/components/ExerciseCard';
 import { cn } from '@/lib/utils';
@@ -9,11 +10,14 @@ import { cn } from '@/lib/utils';
 interface CalendarViewProps {
   workouts: WorkoutDay[];
   onViewHistory: (exerciseName: string) => void;
+  onUpdateDayNotes: (date: string, notes: string) => void;
 }
 
-export function CalendarView({ workouts, onViewHistory }: CalendarViewProps) {
+export function CalendarView({ workouts, onViewHistory, onUpdateDayNotes }: CalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState('');
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -27,6 +31,29 @@ export function CalendarView({ workouts, onViewHistory }: CalendarViewProps) {
   };
 
   const selectedWorkout = selectedDate ? getWorkoutForDate(selectedDate) : null;
+
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+    setIsEditingNotes(false);
+    const workout = getWorkoutForDate(date);
+    setNotesValue(workout?.notes || '');
+  };
+
+  const handleSaveNotes = () => {
+    if (selectedDate) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      onUpdateDayNotes(dateStr, notesValue);
+      setIsEditingNotes(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (selectedDate) {
+      const workout = getWorkoutForDate(selectedDate);
+      setNotesValue(workout?.notes || '');
+    }
+    setIsEditingNotes(false);
+  };
 
   const startDay = monthStart.getDay();
   const emptyDays = Array(startDay).fill(null);
@@ -81,7 +108,7 @@ export function CalendarView({ workouts, onViewHistory }: CalendarViewProps) {
             return (
               <button
                 key={dateStr}
-                onClick={() => setSelectedDate(day)}
+                onClick={() => handleDateSelect(day)}
                 className={cn(
                   "aspect-square rounded-lg flex flex-col items-center justify-center relative transition-colors",
                   isSelected && "bg-primary text-primary-foreground",
@@ -112,9 +139,71 @@ export function CalendarView({ workouts, onViewHistory }: CalendarViewProps) {
           <h2 className="text-lg font-semibold text-muted-foreground">
             {format(selectedDate, 'EEEE, MMMM d')}
           </h2>
+
+          {/* Day Notes Section */}
+          <div className="glass-card rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-muted-foreground" />
+                <h3 className="font-semibold text-sm">Day Notes</h3>
+              </div>
+              {!isEditingNotes && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingNotes(true)}
+                  className="h-7"
+                >
+                  <Edit2 className="w-3 h-3 mr-1" />
+                  {selectedWorkout?.notes ? 'Edit' : 'Add'}
+                </Button>
+              )}
+            </div>
+
+            {isEditingNotes ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
+                  placeholder="Add notes about this day..."
+                  className="bg-secondary border-border resize-none h-24 text-sm"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSaveNotes}
+                    className="flex-1"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {selectedWorkout?.notes ? (
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {selectedWorkout.notes}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground/60 italic">
+                    No notes for this day. Click "Add" to add notes.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
           
           {selectedWorkout && selectedWorkout.exercises.length > 0 ? (
             <div className="space-y-3">
+              <h3 className="font-semibold text-muted-foreground">Exercises</h3>
               {selectedWorkout.exercises
                 .sort((a, b) => a.order - b.order)
                 .map((exercise) => (
@@ -128,7 +217,7 @@ export function CalendarView({ workouts, onViewHistory }: CalendarViewProps) {
           ) : (
             <div className="glass-card rounded-xl p-8 text-center">
               <Dumbbell className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-              <p className="text-muted-foreground mt-2">No workout on this day</p>
+              <p className="text-muted-foreground mt-2">No exercises logged on this day</p>
             </div>
           )}
         </div>
