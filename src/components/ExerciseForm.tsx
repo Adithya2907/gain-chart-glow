@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Minus, Timer, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { SetEntry } from '@/types/workout';
+import { cn } from '@/lib/utils';
 
 interface ExerciseFormProps {
   onSubmit: (exercise: {
     name: string;
-    sets: number;
-    reps: number;
-    weight?: number;
+    type: 'reps' | 'timed';
+    sets: SetEntry[];
     notes?: string;
   }) => void;
   suggestions: string[];
@@ -18,9 +19,8 @@ interface ExerciseFormProps {
 
 export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
   const [name, setName] = useState('');
-  const [sets, setSets] = useState('');
-  const [reps, setReps] = useState('');
-  const [weight, setWeight] = useState('');
+  const [type, setType] = useState<'reps' | 'timed'>('reps');
+  const [sets, setSets] = useState<SetEntry[]>([{ reps: undefined, weight: undefined }]);
   const [notes, setNotes] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -28,23 +28,62 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
     s.toLowerCase().includes(name.toLowerCase()) && name.length > 0
   );
 
+  const addSet = () => {
+    if (type === 'reps') {
+      const lastSet = sets[sets.length - 1];
+      setSets([...sets, { reps: lastSet?.reps, weight: lastSet?.weight }]);
+    } else {
+      setSets([...sets, { duration: undefined }]);
+    }
+  };
+
+  const removeSet = (index: number) => {
+    if (sets.length > 1) {
+      setSets(sets.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateSet = (index: number, field: keyof SetEntry, value: number | undefined) => {
+    setSets(sets.map((set, i) => 
+      i === index ? { ...set, [field]: value } : set
+    ));
+  };
+
+  const handleTypeChange = (newType: 'reps' | 'timed') => {
+    setType(newType);
+    if (newType === 'reps') {
+      setSets([{ reps: undefined, weight: undefined }]);
+    } else {
+      setSets([{ duration: undefined }]);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !sets || !reps) return;
+    if (!name || sets.length === 0) return;
+
+    const validSets = sets.filter(set => 
+      type === 'reps' ? (set.reps && set.reps > 0) : (set.duration && set.duration > 0)
+    );
+
+    if (validSets.length === 0) return;
 
     onSubmit({
       name: name.trim(),
-      sets: parseInt(sets),
-      reps: parseInt(reps),
-      weight: weight ? parseFloat(weight) : undefined,
+      type,
+      sets: validSets,
       notes: notes.trim() || undefined,
     });
 
     setName('');
-    setSets('');
-    setReps('');
-    setWeight('');
+    setSets(type === 'reps' ? [{ reps: undefined, weight: undefined }] : [{ duration: undefined }]);
     setNotes('');
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
 
   return (
@@ -79,44 +118,97 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <Label htmlFor="sets" className="text-muted-foreground text-sm">Sets</Label>
-          <Input
-            id="sets"
-            type="number"
-            min="1"
-            value={sets}
-            onChange={(e) => setSets(e.target.value)}
-            placeholder="3"
-            className="mt-1 bg-secondary border-border"
-          />
+      <div>
+        <Label className="text-muted-foreground text-sm">Exercise Type</Label>
+        <div className="flex gap-2 mt-2">
+          <Button
+            type="button"
+            variant={type === 'reps' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleTypeChange('reps')}
+            className="flex-1"
+          >
+            <Repeat className="w-4 h-4 mr-1" />
+            Reps
+          </Button>
+          <Button
+            type="button"
+            variant={type === 'timed' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleTypeChange('timed')}
+            className="flex-1"
+          >
+            <Timer className="w-4 h-4 mr-1" />
+            Timed
+          </Button>
         </div>
-        <div>
-          <Label htmlFor="reps" className="text-muted-foreground text-sm">Reps</Label>
-          <Input
-            id="reps"
-            type="number"
-            min="1"
-            value={reps}
-            onChange={(e) => setReps(e.target.value)}
-            placeholder="10"
-            className="mt-1 bg-secondary border-border"
-          />
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-muted-foreground text-sm">Sets</Label>
+          <Button type="button" variant="ghost" size="sm" onClick={addSet}>
+            <Plus className="w-4 h-4 mr-1" />
+            Add Set
+          </Button>
         </div>
-        <div>
-          <Label htmlFor="weight" className="text-muted-foreground text-sm">Weight (kg)</Label>
-          <Input
-            id="weight"
-            type="number"
-            min="0"
-            step="0.5"
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
-            placeholder="50"
-            className="mt-1 bg-secondary border-border"
-          />
-        </div>
+
+        {sets.map((set, index) => (
+          <div key={index} className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+            <span className="text-xs text-muted-foreground w-6">#{index + 1}</span>
+            
+            {type === 'reps' ? (
+              <>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={set.weight || ''}
+                    onChange={(e) => updateSet(index, 'weight', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    placeholder="kg"
+                    className="bg-secondary border-border h-9 text-sm"
+                  />
+                </div>
+                <span className="text-muted-foreground text-sm">×</span>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={set.reps || ''}
+                    onChange={(e) => updateSet(index, 'reps', e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="reps"
+                    className="bg-secondary border-border h-9 text-sm"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  min="1"
+                  value={set.duration || ''}
+                  onChange={(e) => updateSet(index, 'duration', e.target.value ? parseInt(e.target.value) : undefined)}
+                  placeholder="seconds"
+                  className="bg-secondary border-border h-9 text-sm"
+                />
+              </div>
+            )}
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => removeSet(index)}
+              className={cn(
+                "h-9 w-9 text-muted-foreground hover:text-destructive",
+                sets.length === 1 && "opacity-50 pointer-events-none"
+              )}
+            >
+              <Minus className="w-4 h-4" />
+            </Button>
+          </div>
+        ))}
       </div>
 
       <div>
@@ -126,14 +218,14 @@ export function ExerciseForm({ onSubmit, suggestions }: ExerciseFormProps) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Any notes about this exercise..."
-          className="mt-1 bg-secondary border-border resize-none h-20"
+          className="mt-1 bg-secondary border-border resize-none h-16"
         />
       </div>
 
       <Button 
         type="submit" 
         className="w-full"
-        disabled={!name || !sets || !reps}
+        disabled={!name}
       >
         <Plus className="w-4 h-4 mr-2" />
         Add Exercise

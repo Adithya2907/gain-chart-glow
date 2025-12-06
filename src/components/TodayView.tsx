@@ -1,12 +1,13 @@
 import { ExerciseForm } from '@/components/ExerciseForm';
 import { ExerciseCard } from '@/components/ExerciseCard';
-import { WorkoutDay, Exercise } from '@/types/workout';
+import { WorkoutDay, Exercise, SetEntry } from '@/types/workout';
 import { Flame } from 'lucide-react';
 
 interface TodayViewProps {
   todayWorkout: WorkoutDay | undefined;
-  onAddExercise: (exercise: Omit<Exercise, 'id'>) => void;
+  onAddExercise: (exercise: Omit<Exercise, 'id' | 'order'>) => void;
   onRemoveExercise: (id: string) => void;
+  onViewHistory: (exerciseName: string) => void;
   suggestions: string[];
 }
 
@@ -14,6 +15,7 @@ export function TodayView({
   todayWorkout, 
   onAddExercise, 
   onRemoveExercise, 
+  onViewHistory,
   suggestions 
 }: TodayViewProps) {
   const today = new Date().toLocaleDateString('en-US', {
@@ -22,8 +24,13 @@ export function TodayView({
     day: 'numeric',
   });
 
-  const totalSets = todayWorkout?.exercises.reduce((sum, e) => sum + e.sets, 0) || 0;
-  const totalReps = todayWorkout?.exercises.reduce((sum, e) => sum + (e.sets * e.reps), 0) || 0;
+  const totalSets = todayWorkout?.exercises.reduce((sum, e) => sum + e.sets.length, 0) || 0;
+  const totalVolume = todayWorkout?.exercises.reduce((sum, e) => {
+    if (e.type === 'reps') {
+      return sum + e.sets.reduce((s, set) => s + ((set.reps || 0) * (set.weight || 0)), 0);
+    }
+    return sum;
+  }, 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -38,7 +45,8 @@ export function TodayView({
               <span className="font-semibold">{todayWorkout.exercises.length} exercises</span>
             </div>
             <span className="text-muted-foreground text-sm">
-              {totalSets} sets · {totalReps} total reps
+              {totalSets} sets
+              {totalVolume > 0 && ` · ${totalVolume.toLocaleString()} kg`}
             </span>
           </div>
         )}
@@ -49,13 +57,16 @@ export function TodayView({
       {todayWorkout && todayWorkout.exercises.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-muted-foreground">Logged Exercises</h2>
-          {todayWorkout.exercises.map((exercise) => (
-            <ExerciseCard
-              key={exercise.id}
-              exercise={exercise}
-              onRemove={onRemoveExercise}
-            />
-          ))}
+          {todayWorkout.exercises
+            .sort((a, b) => a.order - b.order)
+            .map((exercise) => (
+              <ExerciseCard
+                key={exercise.id}
+                exercise={exercise}
+                onRemove={onRemoveExercise}
+                onViewHistory={onViewHistory}
+              />
+            ))}
         </div>
       )}
 
